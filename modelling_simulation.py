@@ -24,18 +24,11 @@ def step_world(q_state, u_state, control_torc, dt, model_r: pin.Model, data_r):
     up_limit = model_r.upperPositionLimit
     down_limit = model_r.lowerPositionLimit
     velocity_limit = model_r.velocityLimit
-
-    print(up_limit)
-    print(down_limit)
-    print(velocity_limit)
     acceleration = pin.aba(model_r, data_r, q_state, u_state, control_torc)
     u_state_new = u_state + acceleration * dt
-    print(u_state_new)
     delta_q = u_state_new * dt
 
     q_state_new = pin.integrate(model_r, q_state, delta_q)
-
-    print("Q new is ", q_state_new)
     if np.any(u_state_new > velocity_limit) or np.any(q_state_new < down_limit) or np.any(q_state_new > up_limit):
         u_state_new = np.zeros(7)
         q_state_new = u_state
@@ -48,7 +41,7 @@ def make_motion(model_robot, data_robot, q_pos, u_pos, control_torc, dt, number_
     q_list = []
     q_pos_values = q_pos
     u_pos_values = u_pos
-
+    q_list.append(q_pos)
     for _ in range(number_of_motions):
         q_pos_new, u_pos_new = step_world(q_pos_values, u_pos_values, control_torc, dt, model_robot,
                                           data_robot)
@@ -86,7 +79,6 @@ def visualize(robot, q_values):
     robot.loadViewerModel("pinocchio")
 
     for q_pos in q_values:
-        print(q_pos)
         robot.display(q_pos)
         time.sleep(0.02)
 

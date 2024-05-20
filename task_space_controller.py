@@ -1,6 +1,6 @@
 import numpy as np
 import pinocchio as pin
-from modelling_simulation import load_franka, step_world, visualize
+from modelling_simulation import step_world
 
 # 1. Find errors for orientation and translation
 # 2. Create a controller to make motion
@@ -29,25 +29,37 @@ def controller_update(x_e, kp, ki, kd, dt):
     x_e = x_e.reshape(-1, 1)
 
     derivative = (x_e - previous_error) / dt
-    integral += x_e * dt
+    integral += (x_e * dt)
 
     p = kp * x_e
     i = ki * integral
     c = kd * derivative
 
     f_w = p + i + c
-    previous_error = x_e
+    previous_error = np.copy(x_e)
 
     return f_w
 
 
-def calculate_tor(model, data, q_posit, x_e, kp, ki, kd, dt):
-    _, jacobian = compute_jacobian_end_effector(model, data, q_posit)
+def null_space_projection(jacobian):
+    identity = np.eye(jacobian.shape[1])
+    pseudo_inverse = np.linalg.pinv(jacobian)
+    null_space_proj = identity - pseudo_inverse @ jacobian
+    return null_space_proj
 
+
+def calculate_tor(model, data, q_posit, x_e, kp, ki, kd, dt, reg_task_weight=0.01):
+    _, jacobian = compute_jacobian_end_effector(model, data, q_posit)
+    jacobian_t = jacobian.T
     fw = controller_update(x_e, kp, ki, kd, dt)
-    print(jacobian)
-    print(fw)
-    return jacobian @ fw
+
+    null_space_proj = null_space_projection(jacobian)
+    secondary_task = -reg_task_weight * q_posit.reshape(-1, 1)
+    regularization_torque = null_space_proj @ secondary_task
+
+    final_torque = jacobian_t @ fw + regularization_torque
+
+    return final_torque
 
 
 def calculate_orientation_error(model, data, q_desired, q_current):
@@ -55,43 +67,49 @@ def calculate_orientation_error(model, data, q_desired, q_current):
     t_wb, _ = compute_jacobian_end_effector(model, data, q_current)
     r_wd = t_wd.rotation
     r_wb = t_wb.rotation
-    error = pin.log3(r_wd @ r_wb.T)
 
-    return error.reshape((3, 1))
+    product = r_wd @ r_wb.T
 
+    orient_error = (pin.log3(product)).reshape(3, 1)
+
+    return orient_error
 
 
 def calculate_translation_error(model, data, q_desired, q_current):
     t_wd, _ = compute_jacobian_end_effector(model, data, q_desired)
     t_wb, _ = compute_jacobian_end_effector(model, data, q_current)
 
-    print(t_wb)
-    print(t_wb)
-    error = t_wd.translation - t_wb.translation
-    return error.reshape((3, 1))
+    tran_error = (t_wd.translation - t_wb.translation).reshape((3, 1))
+    return tran_error
 
 
 def error_table(model, data, q_desired, q_current):
     trans_error = calculate_translation_error(model, data, q_desired, q_current)
     orient_error = calculate_orientation_error(model, data, q_desired, q_current)
 
-    # Concatenate translation and orientation errors into a single 6x1 array
-    r_e = np.concatenate((trans_error, orient_error))
-    return r_e
+    x_e = np.concatenate((trans_error, orient_error))
+
+    return x_e
 
 
-def make_motion_with_controller(model, data, q_desired, q_start, u_start, dt, kp, ki, kd, number_of_motions):
+def make_motion_with_controller(model, data, q_desired, q_start, u_start, kp, ki, kd, dt, number_of_motions):
     q_list = []
-    q_position = q_start
+    q_current = q_start
+    q_list.append(q_current)
     u_value = u_start
 
     for _ in range(number_of_motions):
-        error = error_table(model, data, q_desired, q_start)
-        tor_values = calculate_tor(model, data, q_desired, error, kp, ki, kd, dt)
-        q_pos_new, u_pos_new = step_world(q_position, u_value, tor_values, dt, model, data)
-        q_list.append(q_pos_new)
+        print("Q current: ", q_current)
+        new_error = error_table(model, data, q_desired, q_current)
+        print("Error table: ", new_error)
+        tor_values = calculate_tor(model, data, q_current, new_error, kp, ki, kd, dt)
+        print("torques: ", tor_values)
 
-        q_position = q_pos_new
+        q_pos_new, u_pos_new = step_world(q_current, u_value, tor_values, dt, model, data)
+        print("Q new: ", q_pos_new)
+
+        q_list.append(q_pos_new)
+        q_current = q_pos_new
         u_value = u_pos_new
 
     return q_list
