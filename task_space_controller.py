@@ -48,7 +48,15 @@ def null_space_projection(jacobian):
     return null_space_proj
 
 
+def compute_task_space_inertia_matrix(model_r, data_r, q_pos, jacobian):
+    pin.computeMinverse(model_r, data_r, q_pos)
+    mass_matrix_inv = data_r.Minv
+    task_inertia_matrix = np.linalg.inv(jacobian @ mass_matrix_inv @ jacobian.T)
+    return task_inertia_matrix
+
+
 def calculate_tor(model, data, q_posit, x_e, kp, ki, kd, dt, reg_task_weight=0.01):
+    torque_limit = 200
     _, jacobian = compute_jacobian_end_effector(model, data, q_posit)
     jacobian_t = jacobian.T
     fw = controller_update(x_e, kp, ki, kd, dt)
@@ -58,6 +66,8 @@ def calculate_tor(model, data, q_posit, x_e, kp, ki, kd, dt, reg_task_weight=0.0
     regularization_torque = null_space_proj @ secondary_task
 
     final_torque = jacobian_t @ fw + regularization_torque
+
+    final_torque = np.clip(final_torque, -torque_limit, torque_limit)
 
     return final_torque
 
@@ -97,9 +107,8 @@ def make_motion_with_controller(model, data, q_desired, q_start, u_start, kp, ki
     q_current = q_start
     q_list.append(q_current)
     u_value = u_start
-
+    print("Q start: ", q_start)
     for _ in range(number_of_motions):
-        print("Q current: ", q_current)
         new_error = error_table(model, data, q_desired, q_current)
         print("Error table: ", new_error)
         tor_values = calculate_tor(model, data, q_current, new_error, kp, ki, kd, dt)

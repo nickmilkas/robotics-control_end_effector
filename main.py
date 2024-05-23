@@ -4,19 +4,18 @@ from evaluation import *
 import numpy as np
 
 
-def a_part():
+def a_part(dt):
     robot_1, model_1, data_1 = load_franka("franka.urdf")
-    dt = 0.001
 
-    q_init = np.array([1.5, 1.6, 1.5, -2.0, 0.0, 3.7, 0.0])
+    q_init = np.array([0, 1.6, 1.5, -2.0, 0.0, 3.7, 0.0])
 
     u_init = np.zeros(7)
 
     control_t = np.array([0.0, 0.0, 20.0, 0.0, 0.0, 0.0, 0.0])
 
-    qs = make_motion(model_1, data_1, q_init, u_init, control_t, dt, 300)
+    # qs = make_motion(model_1, data_1, q_init, u_init, control_t, dt, 300)
 
-    # qs = make_motion_without_gravity(model_r, data_r, q_first, u_init, control_t, dt, 300)
+    qs = make_motion_without_gravity(model_1, data_1, q_init, u_init, control_t, dt, 300)
     visualize(robot_1, qs)
 
 
@@ -43,9 +42,9 @@ def b_part(kp, ki, kd, dt):
 def c_part(kp, ki, kd, dt):
     u_init = np.zeros(7)
     robot_3, model_3, data_3 = load_franka("franka.urdf")
-    q_start, q_finish = evaluation_scenarios(0)
+    q_start, q_finish = evaluation_scenarios(3)
 
-    q_pos = make_motion_with_controller(model_3, data_3, q_finish, q_start, u_init, kp, ki, kd, dt, 100)
+    q_pos = make_motion_with_controller(model_3, data_3, q_finish, q_start, u_init, kp, ki, kd, dt, 1000)
 
     visualize(robot_3, q_pos)
 
@@ -53,7 +52,9 @@ def c_part(kp, ki, kd, dt):
 if __name__ == "__main__":
     dt_v = 0.001
 
-    kp_v = 100
+    kp_v = 90
     ki_v = 0
     kd_v = 1
+    # a_part(dt)
+    # b_part(kp_v, ki_v, kd_v, dt_v)
     c_part(kp_v, ki_v, kd_v, dt_v)
