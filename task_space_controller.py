@@ -2,8 +2,6 @@ import numpy as np
 import pinocchio as pin
 from modelling_simulation import step_world
 
-# Find errors in tra
-
 previous_error = np.zeros((6, 1))
 integral = np.zeros((6, 1))
 
