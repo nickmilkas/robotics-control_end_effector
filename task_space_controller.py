@@ -2,8 +2,7 @@ import numpy as np
 import pinocchio as pin
 from modelling_simulation import step_world
 
-# 1. Find errors for orientation and translation
-# 2. Create a controller to make motion
+# Find errors in tra
 
 previous_error = np.zeros((6, 1))
 integral = np.zeros((6, 1))
@@ -85,7 +84,7 @@ def calculate_orientation_error(model, data, q_desired, q_current):
     return orient_error
 
 
-def calculate_translation_error(model, data, q_desired, q_current):
+def calculate_motion_error(model, data, q_desired, q_current):
     t_wd, _ = compute_jacobian_end_effector(model, data, q_desired)
     t_wb, _ = compute_jacobian_end_effector(model, data, q_current)
 
@@ -94,7 +93,7 @@ def calculate_translation_error(model, data, q_desired, q_current):
 
 
 def error_table(model, data, q_desired, q_current):
-    trans_error = calculate_translation_error(model, data, q_desired, q_current)
+    trans_error = calculate_motion_error(model, data, q_desired, q_current)
     orient_error = calculate_orientation_error(model, data, q_desired, q_current)
 
     x_e = np.concatenate((trans_error, orient_error))
@@ -103,17 +102,23 @@ def error_table(model, data, q_desired, q_current):
 
 
 def make_motion_with_controller(model, data, q_desired, q_start, u_start, kp, ki, kd, dt, number_of_motions):
+    error_threshold = 0.3
     q_list = []
+    error_list = []
     q_current = q_start
     q_list.append(q_current)
     u_value = u_start
     print("Q start: ", q_start)
+
     for _ in range(number_of_motions):
         new_error = error_table(model, data, q_desired, q_current)
-        print("Error table: ", new_error)
-        tor_values = calculate_tor(model, data, q_current, new_error, kp, ki, kd, dt)
-        print("torques: ", tor_values)
+        error_list.append(new_error)
 
+        if np.linalg.norm(new_error) < error_threshold:
+            print("Desired position reached!")
+            break
+
+        tor_values = calculate_tor(model, data, q_current, new_error, kp, ki, kd, dt)
         q_pos_new, u_pos_new = step_world(q_current, u_value, tor_values, dt, model, data)
         print("Q new: ", q_pos_new)
 
@@ -121,4 +126,4 @@ def make_motion_with_controller(model, data, q_desired, q_start, u_start, kp, ki
         q_current = q_pos_new
         u_value = u_pos_new
 
-    return q_list
+    return q_list, error_list

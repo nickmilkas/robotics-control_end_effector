@@ -24,15 +24,15 @@ def step_world(q_state, u_state, control_torc, dt, model_r: pin.Model, data_r):
     up_limit = model_r.upperPositionLimit
     down_limit = model_r.lowerPositionLimit
     velocity_limit = model_r.velocityLimit
+
     acceleration = pin.aba(model_r, data_r, q_state, u_state, control_torc)
     u_state_new = u_state + acceleration * dt
     delta_q = u_state_new * dt
 
     q_state_new = pin.integrate(model_r, q_state, delta_q)
-    if np.any(u_state_new > velocity_limit) or np.any(q_state_new < down_limit) or np.any(q_state_new > up_limit):
-        u_state_new = np.zeros(7)
-        q_state_new = u_state
-        print("PROBLEM PROBLEM")
+
+    q_state_new = np.clip(q_state_new, down_limit, up_limit)
+    u_state_new = np.clip(u_state_new, -velocity_limit, velocity_limit)
 
     return q_state_new, u_state_new
 
