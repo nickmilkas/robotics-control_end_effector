@@ -30,13 +30,13 @@ def b_part(kp, ki, kd, dt):
     fw_robot = controller_update(x_e_table, kp, ki, kd, dt)
     torques = calculate_tor(model_2, data_2, q_init, x_e_table, kp, ki, kd, dt)
 
-    print("Jacobian is ", jacobian)
+    print("Jacobian is: ", jacobian)
     print("================================")
-    print("Errors are ", x_e_table)
+    print("Errors are: ", x_e_table)
     print("================================")
-    print("Fw is ", fw_robot)
+    print("Fw is: ", fw_robot)
     print("================================")
-    print("Torques are ", torques)
+    print("Torques are: ", torques)
 
 
 def c_part(kp, ki, kd, dt, scenario):
@@ -44,21 +44,21 @@ def c_part(kp, ki, kd, dt, scenario):
     robot_3, model_3, data_3 = load_franka("franka.urdf")
     q_start, q_finish = evaluation_scenarios(scenario)
 
-    q_pos, error_list = make_motion_with_controller(model_3, data_3, q_finish, q_start, u_init, kp, ki, kd, dt, 1000)
+    q_pos, error_list = make_motion_with_controller(model_3, data_3, q_finish, q_start, u_init, kp, ki, kd, dt, 60000)
     plot_error_with_repetition(error_list)
 
-    visualize(robot_3, q_pos)
+    # visualize(robot_3, q_pos)
 
 
 if __name__ == "__main__":
     dt_v = 0.001
 
-    kp_v = 110
-    ki_v = 0.01
+    kp_v = 85
+    ki_v = 0
     kd_v = 0.01
     # a_part(dt)
 
     # b_part(kp_v, ki_v, kd_v, dt_v)
 
     # Choose scenario from 0 to 3
-    c_part(kp_v, ki_v, kd_v, dt_v, 1)
+    c_part(kp_v, ki_v, kd_v, dt_v, 3)

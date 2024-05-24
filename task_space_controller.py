@@ -52,8 +52,9 @@ def compute_task_space_inertia_matrix(model_r, data_r, q_pos, jacobian):
     return task_inertia_matrix
 
 
-def calculate_tor(model, data, q_posit, x_e, kp, ki, kd, dt, reg_task_weight=0.01):
-    torque_limit = 200
+def calculate_tor(model, data, q_posit, x_e, kp, ki, kd, dt):
+    reg_task_weight = 0.01
+    tor_limit = model.effortLimit.reshape(-1, 1)
     _, jacobian = compute_jacobian_end_effector(model, data, q_posit)
     jacobian_t = jacobian.T
     fw = controller_update(x_e, kp, ki, kd, dt)
@@ -64,7 +65,7 @@ def calculate_tor(model, data, q_posit, x_e, kp, ki, kd, dt, reg_task_weight=0.0
 
     final_torque = jacobian_t @ fw + regularization_torque
 
-    final_torque = np.clip(final_torque, -torque_limit, torque_limit)
+    final_torque = np.clip(final_torque, - tor_limit, tor_limit)
 
     return final_torque
 
@@ -82,7 +83,7 @@ def calculate_orientation_error(model, data, q_desired, q_current):
     return orient_error
 
 
-def calculate_motion_error(model, data, q_desired, q_current):
+def calculate_translation_error(model, data, q_desired, q_current):
     t_wd, _ = compute_jacobian_end_effector(model, data, q_desired)
     t_wb, _ = compute_jacobian_end_effector(model, data, q_current)
 
@@ -91,7 +92,7 @@ def calculate_motion_error(model, data, q_desired, q_current):
 
 
 def error_table(model, data, q_desired, q_current):
-    trans_error = calculate_motion_error(model, data, q_desired, q_current)
+    trans_error = calculate_translation_error(model, data, q_desired, q_current)
     orient_error = calculate_orientation_error(model, data, q_desired, q_current)
 
     x_e = np.concatenate((trans_error, orient_error))
@@ -101,15 +102,20 @@ def error_table(model, data, q_desired, q_current):
 
 def make_motion_with_controller(model, data, q_desired, q_start, u_start, kp, ki, kd, dt, number_of_motions):
     error_threshold = 0.3
+    smallest_error = np.array([100, 100, 100, 100, 100, 100]).reshape(-1, 1)
+    q_best = None
+    repetition = 0
     q_list = []
     error_list = []
+
     q_current = q_start
     q_list.append(q_current)
     u_value = u_start
     print("Q start: ", q_start)
-
-    for _ in range(number_of_motions):
+    print("Q target: ", q_desired)
+    for i in range(number_of_motions):
         new_error = error_table(model, data, q_desired, q_current)
+
         error_list.append(new_error)
 
         if np.linalg.norm(new_error) < error_threshold:
@@ -118,10 +124,15 @@ def make_motion_with_controller(model, data, q_desired, q_start, u_start, kp, ki
 
         tor_values = calculate_tor(model, data, q_current, new_error, kp, ki, kd, dt)
         q_pos_new, u_pos_new = step_world(q_current, u_value, tor_values, dt, model, data)
-        print("Q new: ", q_pos_new)
+        if np.linalg.norm(new_error) < np.linalg.norm(smallest_error):
+            smallest_error = new_error
+            q_best = q_pos_new
+            repetition = i
 
         q_list.append(q_pos_new)
         q_current = q_pos_new
         u_value = u_pos_new
-
+    print("Q best was: ", q_best)
+    print("Smallest error: ", np.linalg.norm(smallest_error))
+    print("Repetition: ", repetition)
     return q_list, error_list

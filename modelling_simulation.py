@@ -80,6 +80,6 @@ def visualize(robot, q_values):
 
     for q_pos in q_values:
         robot.display(q_pos)
-        time.sleep(0.02)
+        time.sleep(0.01)
 
     return 0
